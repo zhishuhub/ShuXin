@@ -3,6 +3,9 @@
  * Global test configuration and mocks
  */
 import { vi } from 'vitest';
+
+// 枢心的接入开关在测试里关掉，原项目的单元测试按 ClawX 原行为跑；枢心自己的测试不依赖这个开关。
+process.env.ZHISHU_MANAGED_AI = '0';
 import '@testing-library/jest-dom';
 
 // Provide a minimal `electron` mock so tests that transitively import

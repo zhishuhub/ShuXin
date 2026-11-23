@@ -9,6 +9,9 @@ import { registerOpenClawConfigCoordinator } from '../gateway/config-delivery';
 import { registerIpcHandlers } from './ipc-handlers';
 import { HostApiRegistry } from './ipc/host-invoke';
 import { createTray } from './tray';
+import { ZHISHU_MANAGED_AI } from '../shuxin/managed';
+import { createShuxinTray } from '../shuxin/tray';
+import { getShuxinService } from '../extensions/builtin/shuxin';
 import { createMenu, openNewChat } from './menu';
 import { registerZoomShortcuts } from './zoom-shortcuts';
 import { registerNewChatShortcut } from './new-chat-shortcut';
@@ -66,7 +69,8 @@ import { syncAllProviderAuthToRuntime } from '../services/providers/provider-run
 import { startGatewayAndSyncAuth } from '../gateway/startup-orchestrator';
 import { ensureOpenClawUpgradeSnapshot } from '../utils/openclaw-upgrade-snapshot';
 
-const WINDOWS_APP_USER_MODEL_ID = 'app.clawx.desktop';
+// 必须和打包配置里的 appId 一致（枢心见 electron-builder.zhishu.yml）
+const WINDOWS_APP_USER_MODEL_ID = ZHISHU_MANAGED_AI ? 'com.zhishuhub.shuxin' : 'app.clawx.desktop';
 const isE2EMode = process.env.CLAWX_E2E === '1';
 const requestedUserDataDir = process.env.CLAWX_USER_DATA_DIR?.trim();
 const requestedRemoteDebuggingPort = process.env.CLAWX_REMOTE_DEBUGGING_PORT?.trim();
@@ -293,6 +297,11 @@ function createMainWindow(): BrowserWindow {
       return;
     }
 
+    // 枢心开机自启时带 --hidden，只在托盘里运行，不弹窗口
+    if (ZHISHU_MANAGED_AI && process.argv.includes('--hidden')) {
+      return;
+    }
+
     win.show();
   });
 
@@ -417,8 +426,8 @@ async function initialize(): Promise<void> {
 
   loadMainWindow(window);
 
-  // Create system tray
-  if (!isE2EMode) {
+  // Create system tray（枢心的托盘要等扩展起来后再建，见下面）
+  if (!isE2EMode && !ZHISHU_MANAGED_AI) {
     createTray(window);
   }
 
@@ -432,6 +441,11 @@ async function initialize(): Promise<void> {
       ),
     },
   });
+
+  if (!isE2EMode && ZHISHU_MANAGED_AI) {
+    const shuxinService = getShuxinService();
+    if (shuxinService) createShuxinTray(window, shuxinService, () => app.quit());
+  }
 
   // Wire marketplace provider to ClawHubService if an extension provides one
   const marketplaceProvider = extensionRegistry.getMarketplaceProvider();
@@ -447,7 +461,8 @@ async function initialize(): Promise<void> {
 
   // Seed a stable default IDENTITY.md before the Gateway initializes the
   // workspace so ClawX desktop sessions skip OpenClaw's chat-first bootstrap.
-  if (!isE2EMode) {
+  // 枢心自己写人设和身份文件（electron/shuxin），不写 ClawX 的。
+  if (!isE2EMode && !ZHISHU_MANAGED_AI) {
     void ensureClawXDefaultIdentity().catch((error) => {
       logger.warn('Failed to seed default ClawX identity:', error);
     });
@@ -456,7 +471,7 @@ async function initialize(): Promise<void> {
   // Repair any bootstrap files that only contain ClawX markers (no OpenClaw
   // template content). This fixes a race condition where ensureClawXContext()
   // previously created the file before the gateway could seed the full template.
-  if (!isE2EMode) {
+  if (!isE2EMode && !ZHISHU_MANAGED_AI) {
     void repairClawXOnlyBootstrapFiles().catch((error) => {
       logger.warn('Failed to repair bootstrap files:', error);
     });
@@ -501,7 +516,7 @@ async function initialize(): Promise<void> {
   // renderer subscribers observe the full startup lifecycle.
   gatewayManager.on('status', (status: { state: string }) => {
     sendMainWindowEvent('gateway:status-changed', status);
-    if (status.state === 'running' && !isE2EMode) {
+    if (status.state === 'running' && !isE2EMode && !ZHISHU_MANAGED_AI) {
       void ensureClawXContext().catch((error) => {
         logger.warn('Failed to re-merge ClawX context after gateway reconnect:', error);
       });
@@ -612,7 +627,7 @@ async function initialize(): Promise<void> {
   // Merge ClawX context snippets into the workspace bootstrap files.
   // The gateway seeds workspace files asynchronously after its HTTP server
   // is ready, so ensureClawXContext will retry until the target files appear.
-  if (!isE2EMode) {
+  if (!isE2EMode && !ZHISHU_MANAGED_AI) {
     void ensureClawXContext().catch((error) => {
       logger.warn('Failed to merge ClawX context into workspace:', error);
     });

@@ -170,6 +170,8 @@ const electronAPI = {
 
 const clawxAPI = {
   hostInvoke: (request: HostRequest) => ipcRenderer.invoke('host:invoke', request),
+  /** 枢心接入开关：为真时界面只显示枢心的几页（见 src/shuxin）。 */
+  shuxinManaged: process.env.ZHISHU_MANAGED_AI !== '0',
 };
 
 // Expose the API to the renderer process

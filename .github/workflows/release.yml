@@ -7,6 +7,8 @@ on:
   push:
     tags:
       - 'v*'
+      # 枢心（zhishuhub/ShuXin）的标签由 zhishu-release.yml 处理
+      - '!v*-zs.*'
   workflow_dispatch:
     inputs:
       version:

@@ -1,0 +1,36 @@
+# 枢心的打包配置：在 ClawX 原配置上改名字、安装包名、中文安装界面，不发布到 ClawX 的更新源。
+# 用法：node scripts/run-electron-builder.mjs --config electron-builder.zhishu.yml --win --publish never
+extends: ./electron-builder.yml
+
+appId: com.zhishuhub.shuxin
+productName: ShuXin
+copyright: Copyright © 2026 ClawX contributors, 智枢
+artifactName: ShuXin-${version}-${os}-${arch}.${ext}
+
+# 安装包只由 GitHub Actions 上传到 zhishuhub/ShuXin 的 Release，应用内不走自动更新
+publish: null
+
+nsis:
+  shortcutName: 枢心
+  uninstallDisplayName: 枢心
+  # 安装界面用简体中文
+  language: "2052"
+  differentialPackage: false
+  artifactName: ShuXin-Setup-${version}-x64.${ext}
+
+mac:
+  # 没有苹果开发者证书，不签名不公证；用户第一次打开要右键「打开」
+  notarize: false
+  hardenedRuntime: false
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  extendInfo:
+    NSCameraUsageDescription: 枢心不会使用摄像头
+    NSMicrophoneUsageDescription: 枢心不会使用麦克风
+
+dmg:
+  artifactName: ShuXin-${version}-mac-${arch}.${ext}

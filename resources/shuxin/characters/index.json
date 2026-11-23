@@ -1,0 +1,16 @@
+{
+  "source": "https://tuniang.app/cards/",
+  "author": "Foreverse Team",
+  "authorUrl": "https://foreverse.app",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "characters": [
+    { "id": "tangtuantuan", "file": "tangtuantuan.png", "gender": "female", "tagline": "楼下面包店的元气老板娘" },
+    { "id": "songzhixia", "file": "songzhixia.png", "gender": "female", "tagline": "大学田径队外冷内热的毒舌学姐" },
+    { "id": "sunianzhi", "file": "sunianzhi.png", "gender": "female", "tagline": "被「拒绝表白系统」绑定的反差校花" },
+    { "id": "rosalind", "file": "rosalind.png", "gender": "female", "tagline": "伦敦击剑俱乐部的冰山教练（英文卡）" },
+    { "id": "huoyushen", "file": "huoyushen.png", "gender": "male", "tagline": "契约婚姻里的禁欲系总裁" },
+    { "id": "shenyan", "file": "shenyan.png", "gender": "male", "tagline": "分开八年后重新出现的前任" },
+    { "id": "caleb", "file": "caleb.png", "gender": "male", "tagline": "小镇汽修店里害羞的修车工（英文卡）" }
+  ]
+}

@@ -29,6 +29,7 @@ declare global {
     electron: ElectronAPI;
     clawx?: {
       hostInvoke: <T = unknown>(request: HostInvokeRequest) => Promise<HostInvokeResponse<T>>;
+      shuxinManaged?: boolean;
     };
   }
 }

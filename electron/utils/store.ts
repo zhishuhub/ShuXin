@@ -8,6 +8,7 @@ import { app } from 'electron';
 import { resolveSupportedLanguage } from '@shared/language';
 import { DEFAULT_WORKSPACE_CWD } from '@shared/workspace';
 import { bomTolerantDeserialize } from './json-bom-deserialize';
+import { ZHISHU_MANAGED_AI } from '../shuxin/managed';
 
 // Lazy-load electron-store (ESM module)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,8 +96,9 @@ function createDefaultSettings(): AppSettings {
     theme: 'system',
     language: resolveSupportedLanguage(getSystemLocale()),
     startMinimized: false,
-    launchAtStartup: false,
-    telemetryEnabled: true,
+    // 枢心要一直在线回微信：默认开机自启；不往 ClawX 的统计服务上报
+    launchAtStartup: ZHISHU_MANAGED_AI,
+    telemetryEnabled: !ZHISHU_MANAGED_AI,
     machineId: '',
     hasReportedInstall: false,
 
@@ -115,7 +117,8 @@ function createDefaultSettings(): AppSettings {
 
     // Update
     updateChannel: 'stable',
-    autoCheckUpdate: true,
+    // 枢心不走 ClawX 的更新源，新版本由界面查智枢网站后提示去网站下载
+    autoCheckUpdate: !ZHISHU_MANAGED_AI,
     autoDownloadUpdate: false,
     skippedVersions: [],
 

@@ -1,0 +1,89 @@
+# 枢心发布：推 v{上游版本}-zs.{n} 标签触发 → 类型检查和单测 → 打 Windows 安装程序 → 冒烟检查 → 发 Release。
+name: ShuXin Release
+
+on:
+  push:
+    tags:
+      - 'v*-zs.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Prefer HTTPS for public GitHub git dependencies
+        run: |
+          git config --global "url.https://github.com/.insteadOf" "git@github.com:"
+          git config --global --add "url.https://github.com/.insteadOf" "ssh://git@github.com/"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: |
+          node scripts/generate-ext-bridge.mjs
+          pnpm run typecheck
+
+      - name: ShuXin unit tests
+        run: pnpm exec vitest run tests/unit/shuxin-
+
+      # 原项目的单测依赖电脑操控、钉钉工具等下载好的二进制和符号链接权限，只作参考，不挡发版
+      - name: Upstream unit tests (informational)
+        continue-on-error: true
+        run: pnpm test
+
+      - name: Download Windows runtime binaries
+        run: pnpm run prep:win-binaries
+
+      # 陪聊用不上 PDF / Excel 这类预装技能，不打进安装包（也省得每轮对话多带技能说明）
+      - name: Build app
+        env:
+          SKIP_PREINSTALLED_SKILLS: '1'
+        run: |
+          pnpm run package
+          New-Item -ItemType Directory -Force build/preinstalled-skills | Out-Null
+          node scripts/patch-nsis-win.mjs
+          node scripts/run-electron-builder.mjs --config electron-builder.zhishu.yml --win --publish never
+
+      - name: Smoke check installer
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem release -Filter 'ShuXin-Setup-*-x64.exe' | Select-Object -First 1
+          if (-not $exe) { Get-ChildItem release; throw 'installer not found' }
+          if ($exe.Length -gt 1GB) { throw "installer too large: $($exe.Length)" }
+          $unpacked = 'release/win-unpacked'
+          foreach ($path in @(
+            "$unpacked/ShuXin.exe",
+            "$unpacked/resources/resources/shuxin/characters/index.json",
+            "$unpacked/resources/resources/skills/girlfriend/SKILL.md",
+            "$unpacked/resources/resources/skills/boyfriend/SKILL.md",
+            "$unpacked/resources/openclaw-plugins/openclaw-weixin/package.json"
+          )) {
+            if (-not (Test-Path $path)) { throw "missing in package: $path" }
+          }
+          Write-Host "installer $($exe.Name) $([math]::Round($exe.Length / 1MB)) MB"
+          (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 枢心 ${{ github.ref_name }}
+          body_path: ZHISHU_RELEASE_NOTES.md
+          files: release/ShuXin-Setup-*-x64.exe
+          fail_on_unmatched_files: true

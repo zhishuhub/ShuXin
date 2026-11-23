@@ -11,6 +11,7 @@ import { getOpenClawResolvedDir, getResourcesDir } from './paths';
 import { logger } from './logger';
 import { cpAsyncSafe } from './plugin-install';
 import { mutateOpenClawConfig, readOpenClawConfigSnapshot } from '../gateway/config-delivery';
+import { ZHISHU_MANAGED_AI } from '../shuxin/managed';
 
 const BUNDLED_OPENCLAW_SKILL_ALLOWLIST = new Set(['skill-creator']);
 
@@ -297,7 +298,10 @@ export async function trimBundledOpenClawSkillsAndConfigs(
  * ~/.openclaw/skills/ on first launch. First-party sources live in resources/skills
  * and ship unchanged in both dev and packaged builds, without network fetching.
  */
-const BUILTIN_SKILLS = ['computer-use'] as const;
+// 枢心另带女友 / 男友两个恋人技能（resources/skills，ClawHub MIT-0），按当前角色只开一个
+const BUILTIN_SKILLS: readonly string[] = ZHISHU_MANAGED_AI
+    ? ['computer-use', 'girlfriend', 'boyfriend']
+    : ['computer-use'];
 
 async function computerUseBundleHash(directory: string): Promise<string | undefined> {
     try {

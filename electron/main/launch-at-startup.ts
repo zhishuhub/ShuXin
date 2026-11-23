@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { logger } from '../utils/logger';
 import { getSetting } from '../utils/store';
+import { ZHISHU_MANAGED_AI } from '../shuxin/managed';
 
 const LINUX_AUTOSTART_FILE = join('.config', 'autostart', 'clawx.desktop');
 
@@ -54,9 +55,11 @@ async function applyLinuxLaunchAtStartup(enabled: boolean): Promise<void> {
 }
 
 function applyWindowsOrMacLaunchAtStartup(enabled: boolean): void {
+  // 枢心开机自启时只在托盘运行（--hidden），不弹窗口
   app.setLoginItemSettings({
     openAtLogin: enabled,
-    openAsHidden: false,
+    openAsHidden: ZHISHU_MANAGED_AI,
+    ...(ZHISHU_MANAGED_AI ? { args: ['--hidden'] } : {}),
   });
   logger.info(`Launch-at-startup ${enabled ? 'enabled' : 'disabled'} via login items`);
 }
