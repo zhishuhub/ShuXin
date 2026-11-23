@@ -16,7 +16,7 @@ ClawX 原有功能的代码保留不删，由开关 `ZHISHU_MANAGED_AI`（`elect
 | `resources/skills/girlfriend`、`resources/skills/boyfriend` | ClawHub 上的恋人技能（作者 ivangdavila，MIT-0），按当前角色只开一个 |
 | `resources/icons/` | 枢心图标、托盘状态图标（`scripts/zhishu-tray-icons.mjs` 生成） |
 | `electron-builder.zhishu.yml` | 枢心打包配置（继承原配置，改名、中文安装界面、不发布到 ClawX 更新源） |
-| `.github/workflows/zhishu-release.yml` | 推 `v*-zs.*` 标签打 Windows 安装程序并发 Release |
+| `.github/workflows/zhishu-release.yml` | 推 `v*-zs.*` 标签打 Windows（x64）安装程序和 Mac（Apple 芯片）dmg 并发 Release |
 
 ## 改动的原文件
 
@@ -28,6 +28,6 @@ ClawX 原有功能的代码保留不删，由开关 `ZHISHU_MANAGED_AI`（`elect
 | `electron/utils/skill-config.ts` | 内置技能多两个恋人技能 |
 | `electron/extensions/builtin/index.ts`、`clawx-extensions.json` | 注册枢心扩展 |
 | `electron/preload/index.ts`、`src/types/electron.d.ts`、`src/main.tsx` | 把开关传给界面，打开时渲染枢心界面 |
-| `index.html`、`package.json` | 窗口标题、版本号（`0.7.0-zs.1`） |
+| `index.html`、`package.json` | 窗口标题、版本号（`0.7.0-zs.2`） |
 | `.github/workflows/release.yml` | 原发布流程不响应 `v*-zs.*` 标签 |
 | `tests/setup.ts` | 测试里关掉开关 |

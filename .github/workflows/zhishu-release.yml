@@ -1,4 +1,4 @@
-# 枢心发布：推 v{上游版本}-zs.{n} 标签触发 → 类型检查和单测 → 打 Windows 安装程序 → 冒烟检查 → 发 Release。
+# 枢心发布：推 v{上游版本}-zs.{n} 标签触发 → 类型检查和单测 → 打 Windows（x64）和 Mac（Apple 芯片）安装包 → 冒烟检查 → 发 Release。
 name: ShuXin Release
 
 on:
@@ -8,59 +8,99 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: zhishu-release-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  windows:
+  test:
     runs-on: windows-latest
+    timeout-minutes: 40
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'pnpm'
-
       - name: Prefer HTTPS for public GitHub git dependencies
         run: |
           git config --global "url.https://github.com/.insteadOf" "git@github.com:"
           git config --global --add "url.https://github.com/.insteadOf" "ssh://git@github.com/"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+      - run: pnpm install --frozen-lockfile
+      - name: Check tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node -e "if(process.env.GITHUB_REF_NAME !== 'v' + require('./package.json').version) process.exit(1)"
       - name: Type check
         run: |
           node scripts/generate-ext-bridge.mjs
           pnpm run typecheck
-
       - name: ShuXin unit tests
         run: pnpm exec vitest run tests/unit/shuxin-
-
       # 原项目的单测依赖电脑操控、钉钉工具等下载好的二进制和符号链接权限，只作参考，不挡发版
       - name: Upstream unit tests (informational)
         continue-on-error: true
         run: pnpm test
 
-      - name: Download Windows runtime binaries
-        run: pnpm run prep:win-binaries
-
+  package:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: macos-15
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      # 没有开发者证书：Windows 不签名，Mac 只做临时签名
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       # 陪聊用不上 PDF / Excel 这类预装技能，不打进安装包（也省得每轮对话多带技能说明）
-      - name: Build app
-        env:
-          SKIP_PREINSTALLED_SKILLS: '1'
+      SKIP_PREINSTALLED_SKILLS: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Prefer HTTPS for public GitHub git dependencies
         run: |
+          git config --global "url.https://github.com/.insteadOf" "git@github.com:"
+          git config --global --add "url.https://github.com/.insteadOf" "ssh://git@github.com/"
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        run: |
+          pnpm run prep:win-binaries
           pnpm run package
           New-Item -ItemType Directory -Force build/preinstalled-skills | Out-Null
           node scripts/patch-nsis-win.mjs
           node scripts/run-electron-builder.mjs --config electron-builder.zhishu.yml --win --publish never
 
-      - name: Smoke check installer
+      - name: Free disk space (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/local/share/powershell /usr/local/share/chromium || true
+          df -h /
+
+      - name: Build macOS dmg (Apple silicon)
+        if: runner.os == 'macOS'
+        run: |
+          sudo sysctl -w kern.maxfiles=262144 kern.maxfilesperproc=131072
+          ulimit -n 65536
+          pnpm run prep:mac-binaries
+          pnpm run package
+          mkdir -p build/preinstalled-skills
+          node scripts/run-electron-builder.mjs --config electron-builder.zhishu.yml --mac --arm64 --publish never
+
+      - name: Smoke check (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $exe = Get-ChildItem release -Filter 'ShuXin-Setup-*-x64.exe' | Select-Object -First 1
@@ -77,13 +117,55 @@ jobs:
             if (-not (Test-Path $path)) { throw "missing in package: $path" }
           }
           Write-Host "installer $($exe.Name) $([math]::Round($exe.Length / 1MB)) MB"
-          (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+      - name: Smoke check (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+          dmg=$(ls release/ShuXin-*-mac-arm64.dmg | head -1)
+          test -n "$dmg"
+          size=$(stat -f%z "$dmg"); test "$size" -lt 1073741824
+          app="release/mac-arm64/ShuXin.app"
+          for path in \
+            "$app/Contents/MacOS/ShuXin" \
+            "$app/Contents/Resources/resources/shuxin/characters/index.json" \
+            "$app/Contents/Resources/resources/skills/girlfriend/SKILL.md" \
+            "$app/Contents/Resources/resources/skills/boyfriend/SKILL.md" \
+            "$app/Contents/Resources/openclaw-plugins/openclaw-weixin/package.json"; do
+            test -e "$path" || { echo "missing in package: $path"; exit 1; }
+          done
+          codesign --verify --deep --verbose=2 "$app"
+          echo "dmg $dmg $((size / 1048576)) MB"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shuxin-${{ matrix.platform }}
+          path: |
+            release/ShuXin-Setup-*-x64.exe
+            release/ShuXin-*-mac-arm64.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
+      - name: List files and sha256
+        run: |
+          ls -l dist-release
+          sha256sum dist-release/*
+      - uses: softprops/action-gh-release@v2
         with:
           name: 枢心 ${{ github.ref_name }}
           body_path: ZHISHU_RELEASE_NOTES.md
-          files: release/ShuXin-Setup-*-x64.exe
+          files: dist-release/*
           fail_on_unmatched_files: true

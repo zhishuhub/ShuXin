@@ -19,14 +19,15 @@ nsis:
   artifactName: ShuXin-Setup-${version}-x64.${ext}
 
 mac:
-  # 没有苹果开发者证书，不签名不公证；用户第一次打开要右键「打开」
+  # 没有苹果开发者证书：只做临时签名、不公证，
+  # 用户第一次打开要右键「打开」。只出 Apple 芯片（arm64）版本。
   notarize: false
   hardenedRuntime: false
-  identity: null
+  # 显式要求临时签名：没证书时 electron-builder 默认完全不签，Apple 芯片会提示「已损坏」打不开
+  identity: '-'
   target:
     - target: dmg
       arch:
-        - x64
         - arm64
   extendInfo:
     NSCameraUsageDescription: 枢心不会使用摄像头
